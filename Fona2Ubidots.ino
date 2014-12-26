@@ -90,9 +90,8 @@ void SendGPS()
   char PROGMEM variable_gps[]="XXX"; //your GPS variable name from Ubidots goes here
   char replybuffer[80];
   uint16_t returncode;
-  char value_gps[]="98";
   
-  for(int z = 0; z<2; z++)
+  for(int z = 0; z<1; z++) //sometimes we have to try twice to get a result
   {
   TurnOnFona();
   fona.begin(4800);
@@ -101,6 +100,10 @@ void SendGPS()
   delay(3000);
   fona.enableGPRS(true);
   delay(3000);
+  uint16_t vbat;
+  fona.getBattVoltage(&vbat);
+  char value_bat[24+1];
+  sprintf(value_bat,"%d",vbat);
    //wdt_reset();     
        if (!fona.getGSMLoc(&returncode, replybuffer, 250))
          Serial.println(F("Failed!")); 
@@ -121,7 +124,7 @@ void SendGPS()
              ptr = strtok(NULL, delimiter);
              h++;
             }
-            Send2ubidots_gps(variable_gps,value_gps,lon,lat);
+            Send2ubidots_gps(variable_gps,value_bat,lon,lat);
        } else {
          //Serial.print(F("Fail code #")); 
        }
