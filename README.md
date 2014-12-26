@@ -8,3 +8,5 @@ Can easily be modified to carry other sensor information.
 
 Sleep-Mode: comes with a custom sleep-function that enables the AVR-Sleep-Functionality with a handy call. If you combine this with a 
 Breadboard-Arduino you can have a cool low-power tracker that runs on batteries for weeks.
+
+Please be aware that some functions from the Adafruit Fona library have to be made public in order to compile this code. Just move the private: statement to the bottom of the function block in Adafruit_FONA.h
