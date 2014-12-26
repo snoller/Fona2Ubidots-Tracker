@@ -58,6 +58,8 @@ sleepabit(3600);
 
 void SendMeasurements()
 {
+  wdt_reset();
+  wdt_enable(WDTO_8S);
   char PROGMEM variable_red[]="XXX"; //your variable names from Ubidots go here
   char PROGMEM variable_green[]="XXX";
   char PROGMEM variable_blue[]="XXX";
@@ -81,12 +83,15 @@ void SendMeasurements()
   GetDisconnected();
   wdt_reset();  
   TurnOffFona(); 
-  wdt_reset();  
+  wdt_reset();
+  wdt_disable();
 }
 
 
 void SendGPS()
 {
+  wdt_reset();
+  wdt_enable(WDTO_8S);
   char PROGMEM variable_gps[]="XXX"; //your GPS variable name from Ubidots goes here
   char replybuffer[80];
   uint16_t returncode;
@@ -94,12 +99,16 @@ void SendGPS()
   for(int z = 0; z<1; z++) //sometimes we have to try twice to get a result
   {
   TurnOnFona();
+  wdt_reset();
   fona.begin(4800);
   delay(3500);
+  wdt_reset();
   fona.enableGPRS(false); 
   delay(3000);
+  wdt_reset();
   fona.enableGPRS(true);
   delay(3000);
+  wdt_reset();
   uint16_t vbat;
   fona.getBattVoltage(&vbat);
   char value_bat[24+1];
@@ -124,6 +133,7 @@ void SendGPS()
              ptr = strtok(NULL, delimiter);
              h++;
             }
+            wdt_reset();
             Send2ubidots_gps(variable_gps,value_bat,lon,lat);
        } else {
          //Serial.print(F("Fail code #")); 
@@ -135,14 +145,13 @@ void SendGPS()
   }
   TurnOffFona();
    //wdt_reset();
-   delay(3000);  
-   //wdt_reset();  
+   delay(3000);
+   wdt_reset();
+   wdt_disable();
 }
 
 void Send2ubidots(char *variable1, char *value1, char *variable2, char *value2, char *variable3, char *value3)
 {
-  wdt_reset();
-  wdt_enable(WDTO_8S);
    int num;
    num = strlen(value1)+strlen(value2)+strlen(value3)+strlen(variable1)+strlen(variable2)+strlen(variable3)+15+11+17+11+17+11+2+1;
    char sendstring[num];
@@ -181,18 +190,13 @@ void Send2ubidots(char *variable1, char *value1, char *variable2, char *value2, 
   fona.println(sendstring);
   fona.println();
   fona.println((char)26);                                       
-  //wdt_reset();
   if (SendATCommand("", '2', '0')) {                            
     Serial.println(F("sending seems ok"));
   }
   else {
-    //Serial.println("Send Timed out, will retry at next interval");
   }
   if (SendATCommand("AT+CIPCLOSE", 'G', 'M')) {
-    //wdt_reset();
   }
-  //wdt_reset();
-  //wdt_disable();
 }
 
 void Send2ubidots_gps(char *variable1, char *value1, char *longi, char *lat)
