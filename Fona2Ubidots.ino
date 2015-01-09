@@ -1,12 +1,13 @@
-#include <SoftwareSerial.h>
++#include <SoftwareSerial.h>
 #include "Adafruit_FONA.h"
 #include <Wire.h>
 #include "SFE_ISL29125.h"
 #include <avr/sleep.h>
 #include <avr/wdt.h>
 #include <stdlib.h>
-#include <avr/pgmspace.h>
+
 SFE_ISL29125 RGB_sensor;
+
 #define FONA_RX 2
 #define FONA_TX 3
 #define FONA_RST 4
@@ -19,7 +20,7 @@ Adafruit_FONA fona = Adafruit_FONA(&myfona, FONA_RST);
 
 
 void setup() {
-  Serial.begin(9600);
+  //Serial.begin(9600);
   pinMode(led, OUTPUT);
   digitalWrite(led, HIGH);
   delay(100);
@@ -33,22 +34,23 @@ void setup() {
       unsigned int trash3 = RGB_sensor.readBlue();
       delay(1000);
       }
-    Serial.println("setting sensor up");
   }
-  fona.setGPRSNetworkSettings(F("eseye.com"), F("user"), F("pass")); //your APN settings here
+  fona.setGPRSNetworkSettings(F("eseye.com"), F("user"), F("pass"));
   pinMode(FONA_KEY, OUTPUT);
   TurnOffFona();
   delay(1000);
-  wdt_disable();
+  wdt_reset();
+  wdt_enable(WDTO_8S);
  }
 
 
 void loop() {
-  wdt_reset();
   digitalWrite(led, HIGH);
   SendGPS();
+  wdt_reset();
   delay(1000);
   SendMeasurements();
+  wdt_reset();
   digitalWrite(led, LOW);
   delay(100);
   TurnOffFona();
@@ -58,17 +60,12 @@ sleepabit(3600);
 
 void SendMeasurements()
 {
-  wdt_reset();
-  wdt_enable(WDTO_8S);
-  char PROGMEM variable_red[]="XXX"; //your variable names from Ubidots go here
-  char PROGMEM variable_green[]="XXX";
-  char PROGMEM variable_blue[]="XXX";
-  unsigned int red = RGB_sensor.readRed();
-  unsigned int green = RGB_sensor.readGreen();
-  unsigned int blue = RGB_sensor.readBlue();
-  char value_red[24+1];
-  char value_green[24+1];
-  char value_blue[24+1];
+  unsigned int red = map(RGB_sensor.readRed(),0,60000,0,255);
+  unsigned int green = map(RGB_sensor.readGreen(),0,60000,0,255);;
+  unsigned int blue = map(RGB_sensor.readBlue(),0,60000,0,255);;
+  char value_red[3+1];
+  char value_green[3+1];
+  char value_blue[3+1];
   sprintf(value_red,"%d",red);
   sprintf(value_green,"%d",green);
   sprintf(value_blue,"%d",blue);
@@ -77,27 +74,23 @@ void SendMeasurements()
   fona.begin(4800);                   
   delay(1000);
   wdt_reset();
+  uint16_t vbat;
+  fona.getBattPercent(&vbat);
+  char value_bat[20];
+  sprintf(value_bat,"%d",vbat);
   GetConnected();                              
-  wdt_reset();
-  Send2ubidots(variable_red,value_red,variable_green,value_green,variable_blue,value_blue);
+  Send2ubidots("XXXXvar1",value_red,"XXXvar2",value_green,"XXXvar3",value_blue,"XXXvar4",value_bat);
   GetDisconnected();
   wdt_reset();  
   TurnOffFona(); 
-  wdt_reset();
-  wdt_disable();
 }
 
 
 void SendGPS()
 {
   wdt_reset();
-  wdt_enable(WDTO_8S);
-  char PROGMEM variable_gps[]="XXX"; //your GPS variable name from Ubidots goes here
   char replybuffer[80];
   uint16_t returncode;
-  
-  for(int z = 0; z<1; z++) //sometimes we have to try twice to get a result
-  {
   TurnOnFona();
   wdt_reset();
   fona.begin(4800);
@@ -110,10 +103,9 @@ void SendGPS()
   delay(3000);
   wdt_reset();
   uint16_t vbat;
-  fona.getBattVoltage(&vbat);
-  char value_bat[24+1];
+  fona.getBattPercent(&vbat);
+  char value_bat[20];
   sprintf(value_bat,"%d",vbat);
-   //wdt_reset();     
        if (!fona.getGSMLoc(&returncode, replybuffer, 250))
          Serial.println(F("Failed!")); 
        
@@ -134,31 +126,24 @@ void SendGPS()
              h++;
             }
             wdt_reset();
-            Send2ubidots_gps(variable_gps,value_bat,lon,lat);
+            Send2ubidots_gps("XXXvarGPS",value_bat,lon,lat);
        } else {
-         //Serial.print(F("Fail code #")); 
        }
-  
-   //wdt_reset();
-   delay(1000);
-   //wdt_reset();
-  }
-  TurnOffFona();
-   //wdt_reset();
-   delay(3000);
    wdt_reset();
-   wdt_disable();
+   delay(1000);
+  TurnOffFona();
 }
 
-void Send2ubidots(char *variable1, char *value1, char *variable2, char *value2, char *variable3, char *value3)
+void Send2ubidots(char *variable1, char *value1, char *variable2, char *value2, char *variable3, char *value3, char *variable4, char *value4)
 {
-   int num;
-   num = strlen(value1)+strlen(value2)+strlen(value3)+strlen(variable1)+strlen(variable2)+strlen(variable3)+15+11+17+11+17+11+2+1;
-   char sendstring[num];
-   sprintf(sendstring,"%s%s%s%s%s%s%s%s%s%s%s%s%s","[{\"variable\": \"",variable1,"\", \"value\":",value1,"}, {\"variable\": \"",variable2,"\", \"value\":",value2,"}, {\"variable\": \"",variable3,"\", \"value\":",value3,"}]");   
-   char numchar[sizeof(num)+8];
-   itoa(num,numchar,10);
    wdt_reset();
+   int num;
+   num = strlen(value1)+strlen(value2)+strlen(value3)+strlen(value4)+strlen(variable1)+strlen(variable2)+strlen(variable3)+strlen(variable4)+15+11+17+11+17+11+17+11+2+1;
+   char sendstring[num];
+   sprintf(sendstring,"%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s","[{\"variable\": \"",variable1,"\", \"value\":",value1,"}, {\"variable\": \"",variable2,"\", \"value\":",value2,"},{\"variable\": \"",variable3,"\", \"value\":",value3,"},{\"variable\": \"",variable4,"\", \"value\":",value4,"}]");   
+   char numchar[get_int_len(num)+1];
+   itoa(num,numchar,10);
+   //wdt_reset();
    char lchar[15+1+strlen(numchar)+1]; //string below + whitespace + num
    sprintf(lchar,"%s %s","Content-Length:",numchar);
   
@@ -169,50 +154,48 @@ void Send2ubidots(char *variable1, char *value1, char *variable2, char *value2, 
       delay(100);
       wdt_reset();
     }
-    if (fona.println("at+cipcsgp=1,\"eseye.com\",\"user\",\"pass\"")) {
+    if (fona.println("at+cipcsgp=1,\"eseye.com\",\"user\",\"pass\"")) { //your APN setting go here
+      delay(100);
+    }
+  if (SendATCommand("AT+CIPSTART=\"tcp\",\"things.ubidots.com\",\"80\"", 'C', 'T')) {
       delay(100);
       wdt_reset();
     }
-    //wdt_reset();
-  if (SendATCommand("AT+CIPSTART=\"tcp\",\"things.ubidots.com\",\"80\"", 'C', 'T')) {
-      delay(100);
-    }
-   wdt_reset();
   if (SendATCommand("AT+CIPSEND", '\n', '>')) {
     delay(100);
     }
   fona.println("POST /api/v1.6/collections/values HTTP/1.1");
   fona.println("Content-Type: application/json");
   fona.println(lchar);
-  fona.println("X-Auth-Token: XXXX");    //your Access Token from Ubidots goes here                                
+  fona.println("X-Auth-Token: XXXtoken");   //your token goes here                                  
   fona.println("Host: things.ubidots.com");
   fona.println();
   fona.println(sendstring);
   fona.println();
   fona.println((char)26);                                       
   if (SendATCommand("", '2', '0')) {                            
-    Serial.println(F("sending seems ok"));
   }
   else {
   }
   if (SendATCommand("AT+CIPCLOSE", 'G', 'M')) {
   }
+  wdt_reset();
 }
 
 void Send2ubidots_gps(char *variable1, char *value1, char *longi, char *lat)
 {
+  wdt_reset();
+  wdt_disable();  
   int num;
-  char value[]="12";
   num = strlen(longi)+strlen(value1)+strlen(lat)+9+21+9+2+1;
   char sendstring[num];
   sprintf(sendstring,"%s%s%s%s%s%s%s","{\"value\":",value1,", \"context\": {\"lat\": ",longi,", \"lng\": ",lat,"}}");
-  char numchar[sizeof(num)+8];
+  char numchar[get_int_len(num)+1];
   itoa(num,numchar,10);
   char varichar[25+16+strlen(variable1)+2];
   sprintf(varichar,"%s%s%s","POST /api/v1.6/variables/",variable1,"/values HTTP/1.1");
   char lchar[15+1+strlen(numchar)+2]; //string below + whitespace + num
-  char PROGMEM char7[]="Content-Length:";
-  sprintf(lchar,"%s %s",char7,numchar);
+  sprintf(lchar,"%s %s","Content-Length:",numchar);
   wdt_reset();
     
   if (fona.println("AT+CIPSHUT")) {
@@ -237,7 +220,7 @@ void Send2ubidots_gps(char *variable1, char *value1, char *longi, char *lat)
     fona.println(varichar);
     fona.println("Content-Type: application/json");
     fona.println(lchar);
-    fona.println("X-Auth-Token: XXX");                 //your Access Token from Ubidots goes here                   
+    fona.println("X-Auth-Token: XXXX");            //your token goes here                        
     fona.println("Host: things.ubidots.com");
     fona.println();
     fona.println(sendstring);
@@ -252,7 +235,7 @@ void Send2ubidots_gps(char *variable1, char *value1, char *longi, char *lat)
   if (SendATCommand("AT+CIPCLOSE", 'G', 'M')) {
     //wdt_reset();
   }
-  //wdt_reset();
+  wdt_reset();
   //wdt_disable();
 }
  
@@ -333,6 +316,11 @@ void TurnOnFona()
     digitalWrite(FONA_KEY, HIGH); 
 }
 
+int get_int_len (int value){
+  int l=1;
+  while(value>9){ l++; value/=10; }
+  return l;
+}
 
 void sleepabit(int howlong)
   {
@@ -369,5 +357,10 @@ ISR (WDT_vect)
    //Serial.println("waking up...");
 }  // end of WDT_vect
 
+int freeRam () {
+  extern int __heap_start, *__brkval; 
+  int v; 
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
+}
 
  
